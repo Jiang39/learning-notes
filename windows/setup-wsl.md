@@ -52,3 +52,39 @@ DISM /Online /Cleanup-Image /RestoreHealth
 wsl --status
 wsl -l -v
 ```
+
+## 补充：快速排错命令（管理员 PowerShell）
+```powershell
+:: 查看相关功能是否启用
+dism /online /get-features /format:table ^| findstr /i VirtualMachinePlatform Microsoft-Windows-Subsystem-Linux
+
+:: 启用必要功能（执行后重启）
+dism /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+dism /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+
+:: （可选，Pro/Enterprise）启用 Hyper-V 全量特性
+dism /online /enable-feature /featurename:Microsoft-Hyper-V-All /all /norestart
+
+:: 确保 Hypervisor 启动
+bcdedit /set hypervisorlaunchtype Auto
+
+:: 检查并启动相关服务
+Get-Service vmcompute, LxssManager, hns ^| ft Name,Status,StartType
+Set-Service vmcompute -StartupType Automatic; Start-Service vmcompute
+Set-Service LxssManager -StartupType Automatic; Start-Service LxssManager
+Set-Service hns -StartupType Automatic; Start-Service hns
+
+:: 更新并设定 WSL2
+wsl --update
+wsl --set-default-version 2
+wsl --install -d Ubuntu
+
+:: 若仍异常，系统修复后重试
+sfc /scannow
+DISM /Online /Cleanup-Image /RestoreHealth
+```
+
+## 备用方案：Docker Desktop Hyper-V 后端（无 WSL2 情况）
+- 前提：Windows Pro/Enterprise；启用 Hyper-V（见上）。
+- Docker Desktop → Settings → General：取消勾选 Use the WSL 2 based engine。
+- 正常启动后，继续使用 compose 起 Postgres+pgvector。
